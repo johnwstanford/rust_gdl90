@@ -1,5 +1,5 @@
 [package]
-name = "stratus"
+name = "rust_gdl90"
 version = "0.1.0"
 authors = ["johnstanford"]
 edition = "2018"
