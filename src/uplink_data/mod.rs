@@ -54,7 +54,6 @@ impl Payload {
 
 		let mut application_data:Vec<Frame> = vec![];
 		while let Ok(frame) = Frame::new(&mut payload) {  
-			eprintln!("{:?}", frame);
 			application_data.push(frame); 
 		}
 
