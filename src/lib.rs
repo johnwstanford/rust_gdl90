@@ -22,8 +22,13 @@ pub mod preprocessing;
 pub mod traffic_report;
 pub mod uplink_data;
 
+pub mod metar;
+
 // Useful utilities that aren't really GDL90-specific, but are needed in more than one place
 pub mod util;
+
+#[cfg(test)]
+mod test;
 
 // This is called StratusGDL90 because it includes extensions to the standard GDL90 specification
 // transmitted by Stratus units and used by ForeFlight
