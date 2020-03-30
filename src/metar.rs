@@ -52,13 +52,13 @@ lazy_static! {
     	TEMPERATURE_GROUP, ALTIMETER_GROUP)).unwrap();
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum QualityControlFlags {
 	Corrected,
 	Automated,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct METAR {
 	// Fields that are always present
 	pub station:String, 
