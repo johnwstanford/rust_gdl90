@@ -1,21 +1,69 @@
 
+extern crate serde;
+extern crate serde_json;
+
+use std::fs::File;
+use std::io::BufReader;
+
+use serde::Deserialize;
+
 use crate::metar::METAR;
+
+#[derive(Debug, Deserialize)]
+struct JsonMetar {
+	raw_text: String,
+	station_id: String,
+	metar_type: String,
+	observation_time: String,
+	altim_in_hg: Option<f32>,
+	wind_dir_degrees: Option<f32>,
+	wind_speed_kt: Option<f32>,
+	wind_gust_kt: Option<f32>,
+	temp_c: Option<f32>,
+	dewpoint_c: Option<f32>,
+}
 
 #[test]
 fn decode_metars() {
 	
-	for metar_str in vec!["KSAN 190751Z COR 26006KT 10SM FEW032 SCT055 BKN075 14/08 A2998 RMK AO2 RAB09E21 SLP150 VCSH P0000 T01440083 401670111",
-						  "KTKI 130853Z AUTO 00000KT 10SM CLR 16/14 A3008 RMK AO2 SLP183 T01610144 53001",
-						  "KMIA 191453Z 11015KT 10SM SCT026 28/19 A3030 RMK AO2 SLP259 60000 T02780189 53018",
-						  "KHRL 191452Z 17023G31KT 10SM FEW018 27/21 A2990 RMK AO2 PK WND 15036/1433 SLP125 T02670211 52009 $",
-						  "KLAX 191453Z VRB03KT 10SM FEW008 FEW022 SCT047 13/07 A3001 RMK AO2 SLP160 T01330067 53021",
-						  "KFLG 191617Z 25011KT 3/4SM -SN BR VV011 M02/M03 A2997 RMK AO2 P0002 T10171033",
-						  "KSWF 260445Z 24010KT 10SM SKC 03/03 A2975"] {
+	let file = File::open("./data/metar_data.json").unwrap();
+	let reader = BufReader::new(file);
+
+	let metar_data:Vec<JsonMetar> = serde_json::from_reader(reader).unwrap();
+
+	for json_metar in metar_data.iter().take(10) {
 	
-		let metar = METAR::from_string(metar_str);
+		let metar = METAR::from_string(&json_metar.raw_text).unwrap();
 
-		println!("\n{:?}", metar);
+		// Compare station
+		assert_eq!(metar.station,       json_metar.station_id);
+		assert_eq!(metar.wind_dir_deg,  json_metar.wind_dir_degrees);
+		assert_eq!(metar.wind_spd_kts,  json_metar.wind_speed_kt);
+		assert_eq!(metar.wind_gust_kts, json_metar.wind_gust_kt);
 
+		match (metar.temperature, json_metar.temp_c) {
+			(Some(_), None   ) => {
+				println!("{:?}", json_metar.raw_text);
+				println!("{:?}", json_metar);
+				println!("{:?}", metar);
+				panic!("One METAR has temperature and the other doesn't")
+			},
+			(None,    Some(_)) => {
+				println!("{:?}", json_metar.raw_text);
+				println!("{:?}", json_metar);
+				println!("{:?}", metar);
+				panic!("One METAR has temperature and the other doesn't")
+			},
+			(Some(x), Some(y)) => assert!((x-y).abs() < 0.6),
+			(None,    None   ) => {},
+		}
+
+		match (metar.altimeter, json_metar.altim_in_hg) {
+			(Some(_), None   ) => panic!("One METAR has altimeter setting and the other doesn't"),
+			(None,    Some(_)) => panic!("One METAR has altimeter setting and the other doesn't"),
+			(Some(x), Some(y)) => assert!((x-y).abs() < 0.6),
+			(None,    None   ) => {},
+		}
 	}
 
 

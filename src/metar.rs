@@ -22,21 +22,34 @@ const WIND_GROUP:&str = r"(\s(\d{3}|VRB)(\d{2,3})G?(\d{2,3})?KT(\s\d{3}V\d{3})?)
 //                              (    11    )
 const VISIBILITY_GROUP:&str = r"(\s.{1,5}SM)?";
 
+//                                       (               12                       )
+//                                           (      13   )      ( 14  )(  15  )
+const RUNWAY_VISUAL_RANGE_GROUP:&str = r"(\sR(\d{2}[LRC]?)/[PM]?(\d{4})(V\d{4})?FT)?";
+
 // There are up to three present weather groups and the only way to capture them all is the just repeat this three times
-//                                   (                                         12, 16, 20                                                      )
-//                                      (13,17,21)(     14, 18, 22        ) (                      15, 19, 23                                 )
+//                                   (                                         16, 20, 24                                                      )
+//                                      (17,21,25)(     18, 22, 26        ) (                      19, 23, 27                                 )
 const PRESENT_WEATHER_GROUP:&str = r"(\s(\+|-|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS))?";
 
 // The specifications don't put a limit on the number of sky condition groups, but the maximum observed in a large set of data is four
-//                                 (       24, 26, 28, 30         )
-//                                    (     25, 27, 29, 31       )
+//                                 (       28, 30, 32, 34         )
+//                                    (     29, 31, 33, 35       )
 const SKY_CONDITION_GROUP:&str = r"(\s(\D{3}\d{3}|VV\d{3}|CLR|SKC))?";
 
+//                               (          36         )
+//								    (   37  ) (  38   )
+const TEMPERATURE_GROUP:&str = r"(\s(M?\d{2})/(M?\d{2}))?";
+
+//							   (    39    )
+//                                 (  40 )
+const ALTIMETER_GROUP:&str = r"(\sA(\d{4}))?";
+
 lazy_static! {
-    static ref METAR_RE: Regex = Regex::new(&format!("{}{}{}{}{}{}{}{}{}{}{}", 
-    	STATION_AND_TIME, REPORT_MODIFIER, WIND_GROUP, VISIBILITY_GROUP, 
+    static ref METAR_RE: Regex = Regex::new(&format!("{}{}{}{}{}{}{}{}{}{}{}{}{}{}", 
+    	STATION_AND_TIME, REPORT_MODIFIER, WIND_GROUP, VISIBILITY_GROUP, RUNWAY_VISUAL_RANGE_GROUP,
     	PRESENT_WEATHER_GROUP, PRESENT_WEATHER_GROUP, PRESENT_WEATHER_GROUP,
-    	SKY_CONDITION_GROUP, SKY_CONDITION_GROUP, SKY_CONDITION_GROUP, SKY_CONDITION_GROUP)).unwrap();
+    	SKY_CONDITION_GROUP, SKY_CONDITION_GROUP, SKY_CONDITION_GROUP, SKY_CONDITION_GROUP,
+    	TEMPERATURE_GROUP, ALTIMETER_GROUP)).unwrap();
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +71,9 @@ pub struct METAR {
 	pub wind_dir_deg:Option<f32>, 
 	pub wind_spd_kts:Option<f32>, 
 	pub wind_gust_kts:Option<f32>,
+	pub temperature:Option<f32>,
+	pub altimeter:Option<f32>,
+	pub dew_point:Option<f32>,
 	pub visibility_sm:Option<String>,
 	pub sky_condition:Vec<String>,
 }
@@ -80,6 +96,7 @@ impl METAR {
 			};
 
 			// Group 6 is the entire wind group
+			// TODO: implement variable wind group, only applicable if variable winds are greater than 6 knots
 			let wind_dir_deg   = match caps.get(7).map(|m| m.as_str()) {
 				Some("VRB") => Some(0.0),
 				Some(ddd)   => ddd.parse::<f32>().ok(),
@@ -89,16 +106,34 @@ impl METAR {
 			let wind_gust_kts  = caps.get(9).map_or("", |m| m.as_str()).parse::<f32>().ok();
 			
 			// TODO: parse visibility to an f32; will require handling of fractions
-			let visibility_sm  = caps.get(11).map(|m| m.as_str().to_owned());
+			let visibility_sm  = caps.get(15).map(|m| m.as_str().to_owned());
 
 			// TODO: include present weather groups in the struct
 
 			let mut sky_condition:Vec<String> = vec![];
-			for idx in &[25, 27, 29, 31] {
+			for idx in &[29, 31, 33, 35] {
 				if let Some(skc) = caps.get(*idx).map(|m| m.as_str()) { 
 					sky_condition.push(skc.to_string()); 
 				}
 			}
+
+			let temperature:Option<f32> = caps.get(37).map(|m| m.as_str()).map(|temp_grp| {
+				if &temp_grp[..1] == "M" {
+					(temp_grp[1..]).parse::<f32>().map(|x| x * -1.0).ok()
+				} else {
+					temp_grp.parse::<f32>().ok()
+				}
+			}).unwrap_or(None);
+
+			let dew_point:Option<f32> = caps.get(38).map(|m| m.as_str()).map(|temp_grp| {
+				if &temp_grp[..1] == "M" {
+					(temp_grp[1..]).parse::<f32>().map(|x| x * -1.0).ok()
+				} else {
+					temp_grp.parse::<f32>().ok()
+				}
+			}).unwrap_or(None);
+
+			let altimeter:Option<f32> = caps.get(40).map_or("", |m| m.as_str()).parse::<f32>().ok().map(|a| a / 100.0);
 
 			/*println!("\n{:?}", s);
 			for (idx, c) in caps.iter().enumerate() {
@@ -107,11 +142,8 @@ impl METAR {
 				}
 			}*/
 
-			// TODO: implement variable wind group, only applicable if variable winds are greater than 6 knots
-			
-			let ans = METAR{ station: station.to_string(), day, hour, min, quality_control_flags, wind_dir_deg, wind_spd_kts, wind_gust_kts, 
-				visibility_sm, sky_condition };
-			Ok(ans)
+			Ok(METAR{ station: station.to_string(), day, hour, min, quality_control_flags, wind_dir_deg, wind_spd_kts, wind_gust_kts, 
+							visibility_sm, sky_condition, altimeter, temperature, dew_point })
 		}
 		else {
 			Err("Unable to match the text to the METAR regex")
