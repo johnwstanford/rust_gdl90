@@ -45,7 +45,7 @@ pub enum StratusGDL90 {
 	LongReport,
 	Unknown{ id:u8, data:Vec<u8> },
 	DeviceId,
-	Attitude{ roll_deg:f32, pitch_deg:f32, hdg_is_true:bool, ias_kts:u16, tas_kts:u16 },
+	Attitude{ roll_deg:Option<f32>, pitch_deg:Option<f32>, hdg_is_true:bool, ias_kts:Option<u16>, tas_kts:Option<u16> },
 }
 
 pub fn interpret_gdl90(id:u8, data:Vec<u8>) -> std::io::Result<StratusGDL90> {
@@ -88,21 +88,18 @@ pub fn interpret_gdl90(id:u8, data:Vec<u8>) -> std::io::Result<StratusGDL90> {
 					let roll_raw:i16  = rdr.read_i16::<BigEndian>()?;
 					let pitch_raw:i16 = rdr.read_i16::<BigEndian>()?;
 					let hdg_raw:u16   = rdr.read_u16::<BigEndian>()?;
-					let ias_kts:u16   = rdr.read_u16::<BigEndian>()?;
-					let tas_kts:u16   = rdr.read_u16::<BigEndian>()?;
+					let ias_raw:u16   = rdr.read_u16::<BigEndian>()?;
+					let tas_raw:u16   = rdr.read_u16::<BigEndian>()?;
 
 					// Interpret raw values and check for errors
-					if roll_raw  < -1800 || roll_raw  > 1800 { return Err(Error::new(ErrorKind::Other, "Roll value outside valid range"));  }
-					if pitch_raw < -1800 || pitch_raw > 1800 { return Err(Error::new(ErrorKind::Other, "Pitch value outside valid range")); }
-					let roll_deg:f32  = (roll_raw as f32) * 0.1;
-					let pitch_deg:f32 = (pitch_raw as f32) * 0.1;
+					let roll_deg  = if roll_raw  < -1800 || roll_raw  > 1800 { None } else { Some((roll_raw  as f32) * 0.1) };
+					let pitch_deg = if pitch_raw < -1800 || pitch_raw > 1800 { None } else { Some((pitch_raw as f32) * 0.1) };
 
 					let hdg_is_true:bool = hdg_raw & 0x8000 == 0;
 					// TODO: decode heading; will involve bit shifting and u15 to i15 conversion
 
-					if ias_kts == 0xFFFF { return Err(Error::new(ErrorKind::Other, "Indicated airspeed invalid")); }
-					if tas_kts == 0xFFFF { return Err(Error::new(ErrorKind::Other, "True airspeed invalid")); }
-
+					let ias_kts = if ias_raw == 0xFFFF { None } else { Some(ias_raw) };
+					let tas_kts = if tas_raw == 0xFFFF { None } else { Some(tas_raw) };
 
 					Ok(StratusGDL90::Attitude{ roll_deg, pitch_deg, hdg_is_true, ias_kts, tas_kts })
 				},
