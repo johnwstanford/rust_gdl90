@@ -66,7 +66,7 @@ impl Payload {
 pub enum Frame {
 	NexradPrecipitationImage{ hours:u32, minutes:u32 },
 	GenericText{ hours:u32, minutes:u32, text: text::Text },
-	Unknown{ id:u32, payload_len:usize, hours:u32, minutes:u32 },
+	Unknown{ id:u32, payload:Vec<u8>, hours:u32, minutes:u32 },
 }
 
 impl Frame {
@@ -103,7 +103,7 @@ impl Frame {
 				for b in apdu_payload { decoder.next(b); }
 				Ok(Frame::GenericText{ hours, minutes, text: text::Text::from_string(decoder.get_result()) })
 			},
-			id => Ok(Frame::Unknown{ id, payload_len: apdu_payload.len(), hours, minutes }),
+			id => Ok(Frame::Unknown{ id, payload: apdu_payload, hours, minutes }),
 			// Unkown frame possibilities: winds aloft, SIGMETs, AIRMETs, SUA
 		}
 
