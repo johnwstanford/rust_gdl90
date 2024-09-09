@@ -6,7 +6,7 @@ fn main() -> Result<(), &'static str> {
 
     let bind_ip = args.get(1).ok_or("Expected bind IP address as first argument")?;
 
-    let mut sock = UdpSocket::bind(bind_ip).map_err(|_| "Unable to bind")?;
+    let mut sock = UdpSocket::bind(bind_ip).unwrap();
     let mut buff = vec![0u8; 1024];
 
     while let Ok(n) = sock.recv(&mut buff[..]) {
