@@ -13,15 +13,15 @@ fn main() -> Result<(), &'static str> {
     let mut buff = vec![0u8; 1024];
 
     while let Ok((n, addr)) = sock.recv_from(&mut buff[..]) {
-        if n < 2 {
+        if n < 2 || buff[0] != 0x7e {
             continue;
         }
 
         println!("{:?}: {:X?}", addr, &buff[..n]);
-        if buff[2] == 0x14 {
-            let report = rust_gdl90::interpret_gdl90(0x14, buff[2..].to_vec()).map_err(|_| "Failed to parse")?;
-            println!("{:?}", report);
-        }
+
+        let report = rust_gdl90::interpret_gdl90(buff[1], buff[2..].to_vec()).map_err(|_| "Failed to parse")?;
+        println!("{:?}", report);
+
     }
 
     Ok(())
