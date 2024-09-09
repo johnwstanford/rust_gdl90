@@ -12,8 +12,8 @@ fn main() -> Result<(), &'static str> {
 
     let mut buff = vec![0u8; 1024];
 
-    while let Ok(n) = sock.recv(&mut buff[..]) {
-        println!("{:X?}", &buff[..n]);
+    while let Ok((n, addr)) = sock.recv_from(&mut buff[..]) {
+        println!("{:?}: {:X?}", addr, &buff[..n]);
     }
 
     Ok(())
