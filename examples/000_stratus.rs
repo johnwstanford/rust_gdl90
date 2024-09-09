@@ -5,6 +5,7 @@ fn main() -> Result<(), &'static str> {
     let args: Vec<String> = std::env::args().collect();
 
     let bind_ip = args.get(1).ok_or("Expected bind IP address as first argument")?;
+    println!("Bind IP address: {}", bind_ip);
 
     let mut sock = UdpSocket::bind(bind_ip).unwrap();
     let mut buff = vec![0u8; 1024];
