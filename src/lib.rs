@@ -3,9 +3,6 @@ extern crate byteorder;
 extern crate lazy_static;
 extern crate serde;
 
-use std::io::{Cursor, Error, ErrorKind};
-
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use serde::{Serialize, Deserialize};
 
 const RAD_PER_DEG:f32 = std::f32::consts::PI / 180.0;
@@ -28,7 +25,9 @@ pub mod metar;
 pub mod util;
 
 #[cfg(test)]
-mod test;
+pub mod tests;
+
+mod impl_stratus_gdl90;
 
 // This is called StratusGDL90 because it includes extensions to the standard GDL90 specification
 // transmitted by Stratus units and used by ForeFlight
@@ -48,65 +47,3 @@ pub enum StratusGDL90 {
 	Attitude{ roll_deg:Option<f32>, pitch_deg:Option<f32>, hdg_is_true:bool, ias_kts:Option<u16>, tas_kts:Option<u16> },
 }
 
-pub fn interpret_gdl90(id:u8, data:Vec<u8>) -> std::io::Result<StratusGDL90> {
-
-	match id {
-		0   => {
-			let mut rdr = Cursor::new(data);
-		 	Ok(StratusGDL90::Heartbeat{ status_byte1: rdr.read_u8()?, status_byte2: rdr.read_u8()?, 
-		 		timestamp:rdr.read_u16::<LittleEndian>()?, msg_count: rdr.read_u16::<BigEndian>()? })
-		 },
-		2   => Ok(StratusGDL90::Initialization),
-		7   => {
-			let mut rdr = Cursor::new(data);
-			let tor_lsb:u8 = rdr.read_u8()?;
-			let tor_2sb:u8 = rdr.read_u8()?;
-			let tor_msb:u8 = rdr.read_u8()?;
-			let time_of_reception_raw:u32 = (tor_msb as u32 * 65536) + (tor_2sb as u32 * 256) + (tor_lsb as u32);
-			let time_of_reception_ns:u32  = time_of_reception_raw * 80;
-
-			let mut buff:Vec<u8> = vec![];
-			while let Ok(b) = rdr.read_u8() { buff.push(b); }
-			let payload = uplink_data::Payload::new(buff)?;
-			Ok(StratusGDL90::UplinkData{ time_of_reception_ns, payload })
-		},
-		9   => Ok(StratusGDL90::HeightAboveTerrain),
-		10  => Ok(StratusGDL90::OwnshipReport(traffic_report::TrafficReport::from_byte_vec(&data)?)),
-		11  => {
-			let mut rdr = Cursor::new(data);
-			let altitude_raw:i16 = rdr.read_i16::<BigEndian>()?;
-			Ok(StratusGDL90::OwnshipGeometricAltitude(altitude_raw as f32 * 5.0))
-		},
-		20  => Ok(StratusGDL90::TrafficReport(traffic_report::TrafficReport::from_byte_vec(&data)?)),
-		30  => Ok(StratusGDL90::BasicReport),
-		31  => Ok(StratusGDL90::LongReport),
-		101 => {
-			let mut rdr = Cursor::new(data);
-			match rdr.read_u8()? {
-				0  => Ok(StratusGDL90::DeviceId),
-				1  => {
-					let roll_raw:i16  = rdr.read_i16::<BigEndian>()?;
-					let pitch_raw:i16 = rdr.read_i16::<BigEndian>()?;
-					let hdg_raw:u16   = rdr.read_u16::<BigEndian>()?;
-					let ias_raw:u16   = rdr.read_u16::<BigEndian>()?;
-					let tas_raw:u16   = rdr.read_u16::<BigEndian>()?;
-
-					// Interpret raw values and check for errors
-					let roll_deg  = if roll_raw  < -1800 || roll_raw  > 1800 { None } else { Some((roll_raw  as f32) * 0.1) };
-					let pitch_deg = if pitch_raw < -1800 || pitch_raw > 1800 { None } else { Some((pitch_raw as f32) * 0.1) };
-
-					let hdg_is_true:bool = hdg_raw & 0x8000 == 0;
-					// TODO: decode heading; will involve bit shifting and u15 to i15 conversion
-
-					let ias_kts = if ias_raw == 0xFFFF { None } else { Some(ias_raw) };
-					let tas_kts = if tas_raw == 0xFFFF { None } else { Some(tas_raw) };
-
-					Ok(StratusGDL90::Attitude{ roll_deg, pitch_deg, hdg_is_true, ias_kts, tas_kts })
-				},
-				_  => Err(Error::new(ErrorKind::Other, "Unknown sub-ID for message 101, defined in the Foreflight extended spec")),
-			}
-		},
-		_   => Ok(StratusGDL90::Unknown{ id, data }),
-	}
-
-}

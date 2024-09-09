@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use rust_gdl90::StratusGDL90;
 
 fn main() -> Result<(), &'static str> {
 
@@ -12,15 +13,20 @@ fn main() -> Result<(), &'static str> {
 
     let mut buff = vec![0u8; 1024];
 
-    while let Ok((n, addr)) = sock.recv_from(&mut buff[..]) {
-        if n < 2 || buff[0] != 0x7e {
-            continue;
+    while let Ok((n, _addr)) = sock.recv_from(&mut buff[..]) {
+
+        if let Ok(report) = rust_gdl90::StratusGDL90::from_udp_packet(&buff[..n]) {
+            match report {
+                StratusGDL90::TrafficReport(traffic) => {
+                    println!(
+                        "ICAO: 0x{:06X}, lat {:.4} [deg], long {:.4} [deg], alt {} [ft], {}",
+                        traffic.participant_address, traffic.latitude_deg, traffic.longitude_deg,
+                        traffic.pres_altitude_ft, traffic.callsign,
+                    );
+                },
+                _ => (),
+            }
         }
-
-        println!("{:?}: {:X?}", addr, &buff[..n]);
-
-        let report = rust_gdl90::interpret_gdl90(buff[1], buff[2..].to_vec()).map_err(|_| "Failed to parse")?;
-        println!("{:?}", report);
 
     }
 
