@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use std::time::{SystemTime, UNIX_EPOCH};
 use rust_gdl90::StratusGDL90;
 
 fn main() -> Result<(), &'static str> {
@@ -19,7 +20,8 @@ fn main() -> Result<(), &'static str> {
             match report {
                 StratusGDL90::TrafficReport(traffic) => {
                     println!(
-                        "ICAO: 0x{:06X}, lat {:.4} [deg], long {:.4} [deg], alt {} [ft], {}",
+                        "{:?} ICAO: 0x{:06X}, lat {:.4} [deg], long {:.4} [deg], alt {} [ft], {}",
+                        SystemTime::now().duration_since(UNIX_EPOCH).unwrap(),
                         traffic.participant_address, traffic.latitude_deg, traffic.longitude_deg,
                         traffic.pres_altitude_ft, traffic.callsign,
                     );
