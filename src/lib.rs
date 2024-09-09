@@ -8,7 +8,7 @@ use std::io::{Cursor, Error, ErrorKind};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use serde::{Serialize, Deserialize};
 
-const RAD_PER_DEG:f32 = 3.14159265359 / 180.0;
+const RAD_PER_DEG:f32 = std::f32::consts::PI / 180.0;
 const METERS_PER_NM:f32 = 1852.0;
 const FEET_PER_NM:f32   = 6076.12;
 
