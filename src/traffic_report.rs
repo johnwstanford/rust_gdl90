@@ -104,7 +104,7 @@ impl TrafficReport {
 		}
 	}
 
-	pub fn from_byte_vec(data:&Vec<u8>) -> std::io::Result<TrafficReport> {
+	pub fn from_slice(data: &[u8]) -> std::io::Result<TrafficReport> {
 		let mut rdr = Cursor::new(data);
 		let status_byte:u8              = rdr.read_u8()?;
 		
